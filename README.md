@@ -8,9 +8,9 @@ A single-page web app with a retro main menu and **four pixel games**, built in 
 
 | Game | What it is |
 |------|------------|
-| **Boss Island** | Open-world pixel island. Roam, kill slimes for XP & loot, collect Power Orbs, and hunt down 3 bosses. Level up to grow stronger. |
-| **Battle Drop** | 2D battle royale. Loot weapons & shields off the ground, mouse-aim and shoot the bots, and survive the shrinking storm for a Victory Royale. |
-| **Fast Draw** | Cowboy shoot-out. Wait for the bar to turn **RED**, then draw faster than your rival. Win cash and buy faster, deadlier six-shooters. |
+| **Ashen Isle** | Pixel **soulslike**. Choose a race (Human / Orc / Elf / Undead), each with its own pros & cons. Explore an open island of POIs, loot chests for **armour & weapons** you can equip, manage **stamina**, **dodge-roll** with i-frames, rest at **bonfires**, spend **souls** to level up your stats, and fell 3 great bosses. Full **inventory** (I) and **map** (M). |
+| **Battle Drop** | 2D battle royale. Carry **up to 3 weapons** and switch between them (1/2/3 or Q). The bots play like humans — they patrol, take a beat to react when they spot you, miss, keep their distance, reload, and flee when wounded. Survive the shrinking storm for a Victory Royale. |
+| **Fast Draw** | Cowboy shoot-out with **levels**. Wait for the bar to turn **RED**, then out-draw your rival. Win 3 duels to clear a level; every level the rival gets faster, timing tightens, and (from Lv2) fake **orange feints** try to bait an early draw. Buy faster, deadlier six-shooters. |
 | **Slap Rush** | Spam **SPACE** to keep your small bar inside the moving target band, filling your charge meter before your rival to land the slap. |
 
 ## Controls

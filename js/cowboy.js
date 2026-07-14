@@ -1,7 +1,9 @@
 /* ============================================================
-   GAME 3 — FAST DRAW  (cowboy shoot-out)
-   Wait... the bar turns RED -> DRAW! Shoot faster than your
-   rival. Win cash, buy faster & deadlier six-shooters.
+   GAME 3 — FAST DRAW  (cowboy shoot-out, now with LEVELS)
+   Wait for the bar to turn RED -> DRAW! Beat your rival's draw.
+   Win 3 duels to clear a level. Every level the rival gets
+   faster, the timing tighter, and (from Lv2) fake ORANGE feints
+   try to bait an early draw. Buy faster guns between duels.
    ============================================================ */
 (function () {
   const { rand, clamp, rectFill, text } = Arcade;
@@ -11,57 +13,77 @@
     { name: "Rusty Revolver", bonus: 0,   price: 0,   dmg: 1 },
     { name: "Quick Iron",     bonus: 45,  price: 60,  dmg: 1 },
     { name: "Peacemaker",     bonus: 90,  price: 160, dmg: 2 },
-    { name: "Lightning .45",  bonus: 140, price: 320, dmg: 2 },
-    { name: "The Widowmaker", bonus: 200, price: 600, dmg: 3 },
+    { name: "Lightning .45",  bonus: 140, price: 340, dmg: 2 },
+    { name: "The Widowmaker", bonus: 200, price: 650, dmg: 3 },
   ];
+  const WINS_PER_LEVEL = 3;
 
   let ctx, env, keys, pressed, mouse;
-  let state, timer, waitFor, reactMs, oppMs, round, money, owned, gunIdx, resultTxt, resultGood;
-  let flash, streak, shopBtns;
+  let state, timer, waitFor, reactMs, oppMs, oppReaction;
+  let level, wins, money, owned, gunIdx, resultTxt, resultGood, streak, flash;
+  let feints, feintActive, shopBtns, banner, bannerT;
 
   function reset(full) {
-    if (full) { money = 0; round = 1; owned = [true, false, false, false, false]; gunIdx = 0; streak = 0; }
+    if (full) { money = 0; level = 1; wins = 0; owned = [true, false, false, false, false]; gunIdx = 0; streak = 0; }
     goReady();
   }
 
-  function goReady() {
-    state = "ready";
-    timer = 0;
-    waitFor = rand(1.4, 3.6);   // seconds before DRAW
-    reactMs = null; oppMs = null; resultTxt = ""; flash = 0;
-    // opponent reaction improves with round, with randomness
-    oppReaction = clamp(560 - round * 22 + rand(-60, 60), 170, 700);
+  function difficulty() {
+    // opponent base reaction shrinks with level & streak; floor also drops with level
+    const floor = clamp(300 - level * 22, 120, 300);
+    const base = 560 - level * 45 - streak * 12;
+    oppReaction = clamp(base + rand(-45, 45), floor, 760);
   }
-  let oppReaction = 500;
+
+  function scheduleFeints() {
+    feints = []; feintActive = 0;
+    if (level < 2) return;
+    const n = level >= 4 ? 2 : 1;
+    for (let i = 0; i < n; i++) {
+      // feint fires somewhere in the wait, leaving a gap before the real draw
+      feints.push(rand(0.5, Math.max(0.6, waitFor - 0.5)));
+    }
+    feints.sort((a, b) => a - b);
+  }
+
+  function goReady() {
+    state = "ready"; timer = 0;
+    waitFor = rand(1.3, 3.4);
+    reactMs = null; oppMs = null; resultTxt = ""; flash = 0;
+    difficulty(); scheduleFeints();
+  }
 
   function start(c, e) {
     ctx = c; env = e; keys = e.keys; pressed = e.pressed; mouse = e.mouse;
     reset(true);
-    env.setControls("<b>SPACE</b> or <b>Click</b> to draw · buy guns in the shop between duels · <b>ESC</b> menu");
-    env.hideOverlay();
-    shopBtns = [];
+    env.setControls("<b>SPACE</b>/<b>Click</b> to draw · only shoot on <b>RED</b> (orange is a feint!) · buy guns in the shop · <b>ESC</b> menu");
+    env.hideOverlay(); shopBtns = [];
+  }
+
+  function tooSoon(reason) {
+    state = "result"; resultGood = false; streak = 0; flash = 0.3;
+    resultTxt = reason;
+  }
+
+  function winDuel(reward) {
+    money += reward; streak++; wins++;
+    resultGood = true; flash = 0.35;
+    if (wins >= WINS_PER_LEVEL) { wins = 0; level++; resultTxt += `  ·  LEVEL UP → Lv.${level}!`; }
   }
 
   function shoot() {
     const g = GUNS[gunIdx];
-    if (state === "ready") {
-      // false start
-      state = "result"; resultGood = false; resultTxt = "TOO SOON! You drew before the signal."; streak = 0; flash = 0.3;
-    } else if (state === "draw") {
+    if (state === "ready") { tooSoon("TOO SOON! You drew before the signal."); return; }
+    if (state === "draw") {
       reactMs = Math.round(timer * 1000);
-      const effective = reactMs - g.bonus; // gun bonus shaves off reaction
+      const effective = reactMs - g.bonus;
       oppMs = Math.round(oppReaction);
       state = "result"; flash = 0.35;
       if (effective <= oppMs) {
-        resultGood = true; streak++;
-        const reward = 20 + round * 8 + Math.max(0, (oppMs - effective) / 4 | 0) + streak * 5;
-        money += reward;
-        resultTxt = `HIT! You: ${reactMs}ms (−${g.bonus} gun = ${effective}) vs Rival ${oppMs}ms  ·  +$${reward}`;
-        round++;
-      } else {
-        resultGood = false; streak = 0;
-        resultTxt = `Rival was faster! You: ${effective}ms vs ${oppMs}ms`;
-      }
+        const reward = 18 + level * 10 + Math.max(0, (oppMs - effective) / 4 | 0) + streak * 4;
+        resultTxt = `HIT! You ${reactMs}ms (−${g.bonus} = ${effective}) vs Rival ${oppMs}ms  ·  +$${reward}`;
+        winDuel(reward);
+      } else { resultTxt = `Rival was faster! You ${effective}ms vs ${oppMs}ms`; streak = 0; resultGood = false; }
     }
   }
 
@@ -70,43 +92,35 @@
 
     if (state === "ready") {
       timer += dt;
+      // trigger feints
+      if (feintActive > 0) feintActive -= dt;
+      for (let i = feints.length - 1; i >= 0; i--) if (timer >= feints[i]) { feintActive = 0.22; feints.splice(i, 1); }
       if (timer >= waitFor) { state = "draw"; timer = 0; flash = 0.15; }
-      if (click) shoot();
+      if (click) tooSoon(feintActive > 0 ? "BAITED! That was a feint (orange), not the draw." : "TOO SOON! You drew before the signal.");
     } else if (state === "draw") {
       timer += dt;
-      // opponent auto-fires at their reaction time
       if (timer * 1000 >= oppReaction && reactMs === null) {
-        // player didn't shoot in time -> rival wins
-        reactMs = Math.round(timer * 1000);
-        oppMs = Math.round(oppReaction);
-        state = "result"; resultGood = false; streak = 0; flash = 0.35;
-        resultTxt = `Too slow! Rival drew at ${oppMs}ms.`;
+        oppMs = Math.round(oppReaction); reactMs = Math.round(timer * 1000);
+        tooSoon(`Too slow! Rival drew at ${oppMs}ms.`);
       } else if (click) shoot();
     } else if (state === "result") {
       if (click) { state = "shop"; buildShop(); }
     } else if (state === "shop") {
-      // buy via number keys
       for (let i = 1; i <= 5; i++) if (pressed["Digit" + i]) tryBuy(i - 1);
-      if (mouse.clicked) {
-        for (const b of shopBtns) if (mouse.x > b.x && mouse.x < b.x + b.w && mouse.y > b.y && mouse.y < b.y + b.h) tryBuy(b.i);
-      }
-      if (keys.Enter || pressed.Space) { /* wait for explicit continue button */ }
+      if (mouse.clicked) for (const b of shopBtns) if (hit(b)) tryBuy(b.i);
     }
 
     if (flash > 0) flash -= dt;
-    env.setHud(`Round ${round}   $${money}   Gun: ${GUNS[gunIdx].name}   Streak ${streak}`);
+    env.setHud(`LEVEL ${level}   Duels ${wins}/${WINS_PER_LEVEL}   $${money}   ${GUNS[gunIdx].name}   Streak ${streak}`);
   }
+
+  function hit(b) { return mouse.x > b.x && mouse.x < b.x + b.w && mouse.y > b.y && mouse.y < b.y + b.h; }
 
   function buildShop() {
-    shopBtns = [];
-    const startY = 190, gap = 62;
-    GUNS.forEach((g, i) => {
-      shopBtns.push({ i, x: W / 2 - 260, y: startY + i * gap, w: 520, h: 52 });
-    });
-    // continue button
-    shopBtns.push({ i: -1, x: W / 2 - 120, y: startY + GUNS.length * gap + 10, w: 240, h: 46, cont: true });
+    shopBtns = []; const startY = 180, gap = 60;
+    GUNS.forEach((g, i) => shopBtns.push({ i, x: W / 2 - 260, y: startY + i * gap, w: 520, h: 50 }));
+    shopBtns.push({ i: -1, x: W / 2 - 120, y: startY + GUNS.length * gap + 8, w: 240, h: 46, cont: true });
   }
-
   function tryBuy(i) {
     if (i === -1) { goReady(); return; }
     if (owned[i]) { gunIdx = i; return; }
@@ -114,87 +128,64 @@
   }
 
   function drawCowboy(x, ground, color, facing, firing) {
-    // simple pixel cowboy
-    rectFill(ctx, x - 16, ground - 70, 32, 44, color);        // body
-    rectFill(ctx, x - 14, ground - 92, 28, 22, "#f2c79a");    // head
-    rectFill(ctx, x - 22, ground - 96, 44, 8, "#4a3222");     // hat brim
-    rectFill(ctx, x - 12, ground - 110, 24, 16, "#4a3222");   // hat top
-    rectFill(ctx, x - 14, ground - 26, 12, 26, "#333");       // leg
-    rectFill(ctx, x + 2, ground - 26, 12, 26, "#333");        // leg
-    // arm + gun
-    const gx = x + facing * 20;
+    rectFill(ctx, x - 16, ground - 70, 32, 44, color);
+    rectFill(ctx, x - 14, ground - 92, 28, 22, "#f2c79a");
+    rectFill(ctx, x - 22, ground - 96, 44, 8, "#4a3222");
+    rectFill(ctx, x - 12, ground - 110, 24, 16, "#4a3222");
+    rectFill(ctx, x - 14, ground - 26, 12, 26, "#333");
+    rectFill(ctx, x + 2, ground - 26, 12, 26, "#333");
     rectFill(ctx, x + facing * 8, ground - 62, facing * 16, 8, color);
+    const gx = x + facing * 20;
     rectFill(ctx, gx, ground - 64, facing * 14, 6, "#222");
-    if (firing) { rectFill(ctx, gx + facing * 14, ground - 66, facing * 12, 10, "#ffd166"); }
+    if (firing) rectFill(ctx, gx + facing * 14, ground - 66, facing * 12, 10, "#ffd166");
   }
 
   function render() {
-    // saloon background
     let bg = "#3a2a1e";
-    if (state === "draw") bg = "#7a1414";
-    if (flash > 0 && state === "draw") bg = "#c21b1b";
+    if (state === "ready" && feintActive > 0) bg = "#a8641e";       // orange feint
+    if (state === "draw") bg = flash > 0 ? "#c21b1b" : "#7a1414";    // red draw
     rectFill(ctx, 0, 0, W, H, bg);
-    // floor
     rectFill(ctx, 0, H - 120, W, 120, "#5a3f28");
     for (let x = 0; x < W; x += 60) rectFill(ctx, x, H - 120, 4, 120, "#4a3320");
-    // sky/wall band
     rectFill(ctx, 0, 0, W, 60, "#2a1d13");
-    text(ctx, "🌵  SALOON DUEL  🌵", W / 2, 20, 22, "#e8c07d", "center");
+    text(ctx, `🌵  SALOON DUEL — LEVEL ${level}  🌵`, W / 2, 20, 22, "#e8c07d", "center");
 
-    if (state === "shop") { renderShop(); return; }
+    if (state === "shop") return renderShop();
 
     const ground = H - 120;
-    const firingP = state === "result" && reactMs !== null && resultGood;
-    const firingO = state === "result" && !resultGood;
-    drawCowboy(240, ground, "#79c0ff", 1, firingP);           // player (faces right)
-    drawCowboy(W - 240, ground, "#c94f4f", -1, firingO);      // rival (faces left)
+    drawCowboy(240, ground, "#79c0ff", 1, state === "result" && resultGood);
+    drawCowboy(W - 240, ground, "#c94f4f", -1, state === "result" && !resultGood);
     text(ctx, "YOU", 240, ground + 4, 14, "#79c0ff", "center");
     text(ctx, "RIVAL", W - 240, ground + 4, 14, "#c94f4f", "center");
 
-    // center signal bar
-    const bw = 300, bx = W / 2 - bw / 2, by = 120;
+    const bw = 320, bx = W / 2 - bw / 2, by = 120;
     rectFill(ctx, bx - 4, by - 4, bw + 8, 58, "#000");
     if (state === "ready") {
-      rectFill(ctx, bx, by, bw, 50, "#333");
-      text(ctx, "WAIT FOR IT...", W / 2, by + 15, 22, "#8b949e", "center");
-    } else if (state === "draw") {
-      rectFill(ctx, bx, by, bw, 50, "#ff2a2a");
-      text(ctx, "DRAW!!!  SHOOT!", W / 2, by + 14, 24, "#fff", "center");
-    } else if (state === "result") {
-      rectFill(ctx, bx, by, bw, 50, resultGood ? "#1f7a3a" : "#444");
-      text(ctx, resultGood ? "YOU WIN!" : "YOU LOSE", W / 2, by + 14, 24, "#fff", "center");
-    }
+      if (feintActive > 0) { rectFill(ctx, bx, by, bw, 50, "#ff8c1a"); text(ctx, "FEINT — HOLD!", W / 2, by + 14, 22, "#3a1a00", "center"); }
+      else { rectFill(ctx, bx, by, bw, 50, "#333"); text(ctx, "WAIT FOR RED...", W / 2, by + 15, 20, "#8b949e", "center"); }
+    } else if (state === "draw") { rectFill(ctx, bx, by, bw, 50, "#ff2a2a"); text(ctx, "DRAW!!!  SHOOT!", W / 2, by + 14, 24, "#fff", "center"); }
+    else if (state === "result") { rectFill(ctx, bx, by, bw, 50, resultGood ? "#1f7a3a" : "#444"); text(ctx, resultGood ? "YOU WIN!" : "YOU LOSE", W / 2, by + 14, 24, "#fff", "center"); }
 
-    // instruction / result text
-    if (state === "ready") text(ctx, "Don't draw early. Wait for the RED signal.", W / 2, 340, 16, "#e8c07d", "center");
-    if (state === "result") {
-      text(ctx, resultTxt, W / 2, 340, 15, "#fff", "center");
-      text(ctx, "Click / SPACE to visit the shop", W / 2, 380, 15, "#8b949e", "center");
-    }
-    if (state === "draw") text(ctx, "NOW!", W / 2, 340, 30, "#fff", "center");
+    if (state === "ready") text(ctx, level >= 2 ? "Beware orange feints — only draw on RED." : "Don't draw early. Wait for the RED signal.", W / 2, 330, 16, "#e8c07d", "center");
+    if (state === "draw") text(ctx, "NOW!", W / 2, 330, 30, "#fff", "center");
+    if (state === "result") { text(ctx, resultTxt, W / 2, 330, 15, "#fff", "center"); text(ctx, "Click / SPACE for the shop", W / 2, 372, 15, "#8b949e", "center"); }
+    text(ctx, `Rival reaction ≈ ${Math.round(oppReaction)}ms`, W / 2, H - 150, 12, "#8b949e", "center");
   }
 
   function renderShop() {
-    text(ctx, "GUN SHOP", W / 2, 110, 34, "#ffd166", "center");
-    text(ctx, `Cash: $${money}   ·   click or press number to buy/equip`, W / 2, 152, 15, "#e8c07d", "center");
+    text(ctx, "GUN SHOP", W / 2, 100, 32, "#ffd166", "center");
+    text(ctx, `Cash $${money}  ·  Level ${level}  ·  click or press a number to buy/equip`, W / 2, 144, 14, "#e8c07d", "center");
     shopBtns.forEach((b) => {
-      if (b.cont) {
-        const hov = mouse.x > b.x && mouse.x < b.x + b.w && mouse.y > b.y && mouse.y < b.y + b.h;
-        rectFill(ctx, b.x, b.y, b.w, b.h, hov ? "#2ea043" : "#1f7a3a");
-        text(ctx, "NEXT DUEL ▶", b.x + b.w / 2, b.y + 14, 18, "#fff", "center");
-        return;
-      }
-      const g = GUNS[b.i];
-      const isOwned = owned[b.i], equipped = gunIdx === b.i;
-      const hov = mouse.x > b.x && mouse.x < b.x + b.w && mouse.y > b.y && mouse.y < b.y + b.h;
-      let col = "#21262d";
-      if (equipped) col = "#1f5f7a"; else if (isOwned) col = "#30363d"; else if (hov) col = "#3a2f1a";
+      const hov = hit(b);
+      if (b.cont) { rectFill(ctx, b.x, b.y, b.w, b.h, hov ? "#2ea043" : "#1f7a3a"); text(ctx, "NEXT DUEL ▶", b.x + b.w / 2, b.y + 14, 18, "#fff", "center"); return; }
+      const g = GUNS[b.i], isOwned = owned[b.i], equipped = gunIdx === b.i;
+      let col = "#21262d"; if (equipped) col = "#1f5f7a"; else if (isOwned) col = "#30363d"; else if (hov) col = "#3a2f1a";
       rectFill(ctx, b.x, b.y, b.w, b.h, col);
       ctx.strokeStyle = equipped ? "#79c0ff" : "#30363d"; ctx.strokeRect(b.x, b.y, b.w, b.h);
       text(ctx, `${b.i + 1}. ${g.name}`, b.x + 14, b.y + 8, 17, "#fff", "left");
       text(ctx, `draw −${g.bonus}ms · dmg x${g.dmg}`, b.x + 14, b.y + 30, 13, "#8b949e", "left");
-      let tag = equipped ? "EQUIPPED" : isOwned ? "OWNED (equip)" : `$${g.price}`;
-      let tc = equipped ? "#79c0ff" : isOwned ? "#7ee787" : (money >= g.price ? "#ffd166" : "#ff6b6b");
+      const tag = equipped ? "EQUIPPED" : isOwned ? "OWNED (equip)" : `$${g.price}`;
+      const tc = equipped ? "#79c0ff" : isOwned ? "#7ee787" : (money >= g.price ? "#ffd166" : "#ff6b6b");
       text(ctx, tag, b.x + b.w - 14, b.y + 16, 16, tc, "right");
     });
   }
