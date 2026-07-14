@@ -1,0 +1,144 @@
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --line: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Courier New", ui-monospace, monospace;
+  -webkit-font-smoothing: none;
+  overflow: hidden;
+}
+
+body { image-rendering: pixelated; }
+
+.screen { display: none; height: 100vh; width: 100vw; }
+.screen.active { display: flex; }
+
+/* ---------- MENU ---------- */
+#menu {
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 20% 20%, #1b2430 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, #241b2e 0%, transparent 50%),
+    var(--bg);
+}
+.menu-inner { width: min(920px, 92vw); text-align: center; }
+
+.title {
+  font-size: clamp(38px, 8vw, 76px);
+  letter-spacing: 6px;
+  font-weight: 900;
+  text-shadow: 4px 4px 0 #000, 0 0 24px rgba(126,231,135,.25);
+  line-height: 1;
+}
+.title span {
+  display: block;
+  color: #7ee787;
+  text-shadow: 4px 4px 0 #000;
+}
+.subtitle { color: var(--muted); margin: 14px 0 26px; letter-spacing: 3px; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+@media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+
+.card {
+  cursor: pointer;
+  text-align: left;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  color: var(--text);
+  font-family: inherit;
+  transition: transform .08s, border-color .12s, box-shadow .12s;
+  overflow: hidden;
+}
+.card:hover {
+  transform: translateY(-4px);
+  border-color: var(--c);
+  box-shadow: 0 0 0 2px var(--c), 0 8px 30px rgba(0,0,0,.5);
+}
+.card-art {
+  height: 92px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  image-rendering: pixelated;
+  border: 2px solid #000;
+}
+.art-boss { background:
+  linear-gradient(#1f6f3a,#1f6f3a) 0 0/100% 55% no-repeat,
+  linear-gradient(#2b6ca3,#2b6ca3) 0 100%/100% 45% no-repeat, #2b6ca3; position:relative; }
+.art-fort { background:
+  repeating-linear-gradient(45deg,#3a4a2e 0 12px,#43552f 12px 24px); }
+.art-cow { background:
+  linear-gradient(#f2b56b,#e08b4c); }
+.art-slap { background:
+  linear-gradient(90deg,#ff7b9c 0 20%,#30363d 20% 100%); }
+.card-name { font-size: 22px; font-weight: 800; color: var(--c); letter-spacing: 1px; }
+.card-desc { color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
+.foot { margin-top: 26px; color: #586069; font-size: 12px; letter-spacing: 1px; }
+
+/* ---------- GAME ---------- */
+#game { flex-direction: column; background: #05070a; }
+.game-bar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 2px solid var(--line);
+}
+.btn {
+  cursor: pointer;
+  background: #21262d; color: var(--text);
+  border: 2px solid var(--line); border-radius: 6px;
+  padding: 8px 14px; font-family: inherit; font-weight: 700;
+  transition: background .1s, border-color .1s;
+}
+.btn:hover { background: #30363d; border-color: #7ee787; }
+.game-title { font-weight: 800; letter-spacing: 2px; }
+.hud { margin-left: auto; color: var(--muted); font-size: 14px; white-space: pre; }
+
+.stage {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; padding: 12px;
+}
+canvas {
+  background: #000;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  max-width: 100%; max-height: 100%;
+  image-rendering: pixelated;
+  outline: none;
+}
+.controls {
+  padding: 8px 16px; text-align: center;
+  color: var(--muted); font-size: 12px;
+  border-top: 2px solid var(--line); background: var(--panel);
+  min-height: 34px;
+}
+
+.overlay {
+  position: absolute; inset: 12px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.72);
+  border-radius: 6px; text-align: center; gap: 14px;
+  backdrop-filter: blur(2px);
+}
+.overlay.hidden { display: none; }
+.overlay h2 { font-size: 40px; letter-spacing: 3px; }
+.overlay p { color: var(--muted); max-width: 500px; line-height: 1.6; }
+.overlay .big { font-size: 22px; color: #ffd166; }

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PIXEL ARCADE</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🕹️</text></svg>" />
+</head>
+<body>
+  <!-- MAIN MENU -->
+  <div id="menu" class="screen active">
+    <div class="menu-inner">
+      <h1 class="title">PIXEL<span>ARCADE</span></h1>
+      <p class="subtitle">Choose your game</p>
+      <div class="cards">
+        <button class="card" data-game="boss" style="--c:#7ee787">
+          <div class="card-art art-boss"></div>
+          <div class="card-name">Boss Island</div>
+          <div class="card-desc">Open-world island. Gather loot, slay bosses, grow strong.</div>
+        </button>
+        <button class="card" data-game="fortnite" style="--c:#79c0ff">
+          <div class="card-art art-fort"></div>
+          <div class="card-name">Battle Drop</div>
+          <div class="card-desc">2D battle royale. Loot weapons, wipe the bots, shrink the storm.</div>
+        </button>
+        <button class="card" data-game="cowboy" style="--c:#ffa657">
+          <div class="card-art art-cow"></div>
+          <div class="card-name">Fast Draw</div>
+          <div class="card-desc">Cowboy duel. When it turns RED — shoot! Buy deadlier guns.</div>
+        </button>
+        <button class="card" data-game="slap" style="--c:#ff7b9c">
+          <div class="card-art art-slap"></div>
+          <div class="card-name">Slap Rush</div>
+          <div class="card-desc">Spam SPACE to fit your bar inside the target. Land the slap!</div>
+        </button>
+      </div>
+      <p class="foot">Made with vanilla JS + Canvas · <span id="foot-tag">Pixel Arcade</span></p>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="game" class="screen">
+    <div class="game-bar">
+      <button id="backBtn" class="btn">‹ Menu</button>
+      <span id="gameTitle" class="game-title"></span>
+      <span id="hud" class="hud"></span>
+    </div>
+    <div class="stage">
+      <canvas id="canvas" width="960" height="600"></canvas>
+      <div id="overlay" class="overlay hidden"></div>
+    </div>
+    <div id="controls" class="controls"></div>
+  </div>
+
+  <script src="js/engine.js"></script>
+  <script src="js/boss.js"></script>
+  <script src="js/fortnite.js"></script>
+  <script src="js/cowboy.js"></script>
+  <script src="js/slap.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
