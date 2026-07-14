@@ -9,12 +9,17 @@
   const { rand, clamp, rectFill, text } = Arcade;
   const W = 960, H = 600;
 
+  // bonus = ms shaved off your reaction · unlock = min level before you can buy it
   const GUNS = [
-    { name: "Rusty Revolver", bonus: 0,   price: 0,   dmg: 1 },
-    { name: "Quick Iron",     bonus: 45,  price: 60,  dmg: 1 },
-    { name: "Peacemaker",     bonus: 90,  price: 160, dmg: 2 },
-    { name: "Lightning .45",  bonus: 140, price: 340, dmg: 2 },
-    { name: "The Widowmaker", bonus: 200, price: 650, dmg: 3 },
+    { name: "Rusty Revolver",     bonus: 0,   price: 0,    dmg: 1, unlock: 1 },
+    { name: "Quick Iron",         bonus: 50,  price: 80,   dmg: 1, unlock: 1 },
+    { name: "Peacemaker",         bonus: 100, price: 190,  dmg: 2, unlock: 2 },
+    { name: "Lightning .45",      bonus: 150, price: 360,  dmg: 2, unlock: 3 },
+    { name: "Twin Colts",         bonus: 195, price: 560,  dmg: 3, unlock: 4 },
+    { name: "Marshal's Repeater", bonus: 235, price: 780,  dmg: 3, unlock: 5 },
+    { name: "Deadeye Special",    bonus: 275, price: 1050, dmg: 4, unlock: 6 },
+    { name: "Gunslinger's Pride", bonus: 325, price: 1550, dmg: 4, unlock: 8 },
+    { name: "The Widowmaker",     bonus: 385, price: 2300, dmg: 5, unlock: 10 },
   ];
   const WINS_PER_LEVEL = 3;
 
@@ -24,15 +29,15 @@
   let feints, feintActive, shopBtns, banner, bannerT;
 
   function reset(full) {
-    if (full) { money = 0; level = 1; wins = 0; owned = [true, false, false, false, false]; gunIdx = 0; streak = 0; }
+    if (full) { money = 0; level = 1; wins = 0; owned = GUNS.map((g, i) => i === 0); gunIdx = 0; streak = 0; }
     goReady();
   }
 
   function difficulty() {
-    // opponent base reaction shrinks with level & streak; floor also drops with level
-    const floor = clamp(300 - level * 22, 120, 300);
-    const base = 560 - level * 45 - streak * 12;
-    oppReaction = clamp(base + rand(-45, 45), floor, 760);
+    // opponent is much faster now: lower base, lower floor, ramps hard with level & streak
+    const floor = clamp(230 - level * 16, 85, 230);
+    const base = 470 - level * 42 - streak * 14;
+    oppReaction = clamp(base + rand(-40, 40), floor, 620);
   }
 
   function scheduleFeints() {
@@ -106,7 +111,7 @@
     } else if (state === "result") {
       if (click) { state = "shop"; buildShop(); }
     } else if (state === "shop") {
-      for (let i = 1; i <= 5; i++) if (pressed["Digit" + i]) tryBuy(i - 1);
+      for (let i = 1; i <= 9; i++) if (pressed["Digit" + i]) tryBuy(i - 1);
       if (mouse.clicked) for (const b of shopBtns) if (hit(b)) tryBuy(b.i);
     }
 
@@ -117,13 +122,14 @@
   function hit(b) { return mouse.x > b.x && mouse.x < b.x + b.w && mouse.y > b.y && mouse.y < b.y + b.h; }
 
   function buildShop() {
-    shopBtns = []; const startY = 180, gap = 60;
-    GUNS.forEach((g, i) => shopBtns.push({ i, x: W / 2 - 260, y: startY + i * gap, w: 520, h: 50 }));
-    shopBtns.push({ i: -1, x: W / 2 - 120, y: startY + GUNS.length * gap + 8, w: 240, h: 46, cont: true });
+    shopBtns = []; const startY = 150, gap = 44;
+    GUNS.forEach((g, i) => shopBtns.push({ i, x: W / 2 - 270, y: startY + i * gap, w: 540, h: 40 }));
+    shopBtns.push({ i: -1, x: W / 2 - 120, y: startY + GUNS.length * gap + 4, w: 240, h: 36, cont: true });
   }
   function tryBuy(i) {
     if (i === -1) { goReady(); return; }
     if (owned[i]) { gunIdx = i; return; }
+    if (level < GUNS[i].unlock) return;                 // still locked
     if (money >= GUNS[i].price) { money -= GUNS[i].price; owned[i] = true; gunIdx = i; }
   }
 
@@ -173,20 +179,24 @@
   }
 
   function renderShop() {
-    text(ctx, "GUN SHOP", W / 2, 100, 32, "#ffd166", "center");
-    text(ctx, `Cash $${money}  ·  Level ${level}  ·  click or press a number to buy/equip`, W / 2, 144, 14, "#e8c07d", "center");
+    text(ctx, "GUN SHOP", W / 2, 96, 28, "#ffd166", "center");
+    text(ctx, `Cash $${money}  ·  Level ${level}  ·  click or press 1-9 to buy/equip · guns UNLOCK as you level up`, W / 2, 130, 13, "#e8c07d", "center");
     shopBtns.forEach((b) => {
       const hov = hit(b);
-      if (b.cont) { rectFill(ctx, b.x, b.y, b.w, b.h, hov ? "#2ea043" : "#1f7a3a"); text(ctx, "NEXT DUEL ▶", b.x + b.w / 2, b.y + 14, 18, "#fff", "center"); return; }
-      const g = GUNS[b.i], isOwned = owned[b.i], equipped = gunIdx === b.i;
-      let col = "#21262d"; if (equipped) col = "#1f5f7a"; else if (isOwned) col = "#30363d"; else if (hov) col = "#3a2f1a";
+      if (b.cont) { rectFill(ctx, b.x, b.y, b.w, b.h, hov ? "#2ea043" : "#1f7a3a"); text(ctx, "NEXT DUEL ▶", b.x + b.w / 2, b.y + 10, 17, "#fff", "center"); return; }
+      const g = GUNS[b.i], isOwned = owned[b.i], equipped = gunIdx === b.i, locked = level < g.unlock;
+      let col = "#21262d"; if (equipped) col = "#1f5f7a"; else if (isOwned) col = "#30363d"; else if (locked) col = "#1a1a1f"; else if (hov) col = "#3a2f1a";
       rectFill(ctx, b.x, b.y, b.w, b.h, col);
       ctx.strokeStyle = equipped ? "#79c0ff" : "#30363d"; ctx.strokeRect(b.x, b.y, b.w, b.h);
-      text(ctx, `${b.i + 1}. ${g.name}`, b.x + 14, b.y + 8, 17, "#fff", "left");
-      text(ctx, `draw −${g.bonus}ms · dmg x${g.dmg}`, b.x + 14, b.y + 30, 13, "#8b949e", "left");
-      const tag = equipped ? "EQUIPPED" : isOwned ? "OWNED (equip)" : `$${g.price}`;
-      const tc = equipped ? "#79c0ff" : isOwned ? "#7ee787" : (money >= g.price ? "#ffd166" : "#ff6b6b");
-      text(ctx, tag, b.x + b.w - 14, b.y + 16, 16, tc, "right");
+      const nameCol = locked ? "#5a6068" : "#fff";
+      text(ctx, `${b.i + 1}. ${g.name}`, b.x + 12, b.y + 5, 15, nameCol, "left");
+      text(ctx, `draw −${g.bonus}ms · dmg x${g.dmg}`, b.x + 12, b.y + 23, 12, "#8b949e", "left");
+      let tag, tc;
+      if (equipped) { tag = "EQUIPPED"; tc = "#79c0ff"; }
+      else if (isOwned) { tag = "OWNED (equip)"; tc = "#7ee787"; }
+      else if (locked) { tag = "🔒 Lv " + g.unlock; tc = "#8b949e"; }
+      else { tag = "$" + g.price; tc = money >= g.price ? "#ffd166" : "#ff6b6b"; }
+      text(ctx, tag, b.x + b.w - 12, b.y + 12, 15, tc, "right");
     });
   }
 

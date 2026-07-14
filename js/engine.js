@@ -53,13 +53,25 @@ window.Arcade = (function () {
     clearOneShots();
 
     let last = 0;
+    let crashed = false;
     game.start(ctx, { ...env, canvas, keys, pressed, mouse });
 
     function frame(t) {
       const dt = Math.min(0.05, last ? (t - last) / 1000 : 0.016);
       last = t;
-      if (current && current.update) current.update(dt);
-      if (current && current.render) current.render();
+      if (!crashed) {
+        try {
+          if (current && current.update) current.update(dt);
+          if (current && current.render) current.render();
+        } catch (err) {
+          crashed = true;
+          console.error("[Arcade] game crashed:", err);
+          ctx.fillStyle = "rgba(0,0,0,.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          text(ctx, "A GLITCH OCCURRED", canvas.width / 2, canvas.height / 2 - 40, 26, "#ff6b6b", "center");
+          text(ctx, String(err && err.message || err).slice(0, 80), canvas.width / 2, canvas.height / 2, 14, "#ffd166", "center");
+          text(ctx, "Press ESC for menu — please report this.", canvas.width / 2, canvas.height / 2 + 34, 13, "#8b949e", "center");
+        }
+      }
       clearOneShots();
       rafId = requestAnimationFrame(frame);
     }
@@ -88,8 +100,39 @@ window.Arcade = (function () {
     ctx.fillText(str, x, y);
   }
 
+  // outlined pixel box — gives sprites depth without looking blocky
+  function obox(ctx, x, y, w, h, fill, ol) {
+    ctx.fillStyle = ol || "#161320";
+    ctx.fillRect((x - 1) | 0, (y - 1) | 0, Math.ceil(w + 2), Math.ceil(h + 2));
+    ctx.fillStyle = fill;
+    ctx.fillRect(x | 0, y | 0, Math.ceil(w), Math.ceil(h));
+  }
+
+  // draw a string-grid sprite scaled up (Terraria-style pixel art)
+  function spr(ctx, grid, palette, x, y, px, flip) {
+    for (let r = 0; r < grid.length; r++) {
+      const row = grid[r];
+      for (let c = 0; c < row.length; c++) {
+        const ch = row[c];
+        if (ch === " " || ch === ".") continue;
+        const col = palette[ch];
+        if (!col) continue;
+        const cx = flip ? (row.length - 1 - c) : c;
+        ctx.fillStyle = col;
+        ctx.fillRect((x + cx * px) | 0, (y + r * px) | 0, px, px);
+      }
+    }
+  }
+
+  // deterministic hash for stable procedural detail (grass tufts, etc.)
+  function hash(x, y) {
+    let h = (x * 374761393 + y * 668265263) | 0;
+    h = (h ^ (h >> 13)) * 1274126177;
+    return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+  }
+
   return {
     games, run, stop, bindMouse,
-    rand, clamp, dist, rectFill, text,
+    rand, clamp, dist, rectFill, text, obox, spr, hash,
   };
 })();

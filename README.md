@@ -8,9 +8,9 @@ A single-page web app with a retro main menu and **four pixel games**, built in 
 
 | Game | What it is |
 |------|------------|
-| **Ashen Isle** | Pixel **soulslike**. Choose a race (Human / Orc / Elf / Undead), each with its own pros & cons. Explore an open island of POIs, loot chests for **armour & weapons** you can equip, manage **stamina**, **dodge-roll** with i-frames, rest at **bonfires**, spend **souls** to level up your stats, and fell 3 great bosses. Full **inventory** (I) and **map** (M). |
-| **Battle Drop** | 2D battle royale. Carry **up to 3 weapons** and switch between them (1/2/3 or Q). The bots play like humans — they patrol, take a beat to react when they spot you, miss, keep their distance, reload, and flee when wounded. Survive the shrinking storm for a Victory Royale. |
-| **Fast Draw** | Cowboy shoot-out with **levels**. Wait for the bar to turn **RED**, then out-draw your rival. Win 3 duels to clear a level; every level the rival gets faster, timing tightens, and (from Lv2) fake **orange feints** try to bait an early draw. Buy faster, deadlier six-shooters. |
+| **Emberfall** | Full **2D pixel soulsbourne** with Terraria-style art & lighting. Pick a **job** — Knight (guard), Wizard (fireball/ranged staff), Rogue (shadowstep), or Cleric (heal) — each with a unique skill and starting gear. **7 stats** (VIT/END/STR/DEX/INT/FTH/LCK), **mana & spells**, **stamina** + **dodge-roll**, equip **weapons / armour / trinkets** looted from chests, rest & level at **bonfires**, open the **map to fast-travel**, and fell **8 bosses** with distinct AI (melee, chargers, casters, summoners). |
+| **Battle Drop** | 2D battle royale on a **big map**. You drop in with **nothing but a pickaxe** and must loot **5 gun types** + shields off the ground and off kills. Carry up to 3 weapons (switch 1/2/3 or Q, reload R). Bots play like humans — they start with a pickaxe too, loot up, patrol, take a beat to react, miss, keep their distance, reload, and flee when wounded. Survive the shrinking storm. |
+| **Fast Draw** | Cowboy shoot-out with **levels**. Wait for the bar to turn **RED**, then out-draw a rival whose reactions get **very fast** (down to ~85 ms). Win 3 duels to clear a level; from Lv2, fake **orange feints** bait early draws. **9 six-shooters** that **unlock as you level up** and can be bought with duel winnings. |
 | **Slap Rush** | Spam **SPACE** to keep your small bar inside the moving target band, filling your charge meter before your rival to land the slap. |
 
 ## Controls

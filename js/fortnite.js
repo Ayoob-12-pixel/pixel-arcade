@@ -9,15 +9,17 @@
 (function () {
   const { rand, clamp, dist, rectFill, text } = Arcade;
   const W = 960, H = 600;
-  const MAP_W = 2200, MAP_H = 1600;
+  const MAP_W = 3600, MAP_H = 2600;
 
   const GUNS = {
+    pickaxe: { name: "Pickaxe", melee: true, dmg: 34, rate: 0.42, range: 42, color: "#b98a5a" },
     pistol:  { name: "Pistol",  dmg: 20, rate: 0.40, spread: 0.05, speed: 640, mag: 12, reload: 1.1, range: 300, color: "#8b949e" },
     smg:     { name: "SMG",     dmg: 12, rate: 0.10, spread: 0.13, speed: 660, mag: 30, reload: 1.4, range: 260, color: "#79c0ff" },
     rifle:   { name: "Rifle",   dmg: 32, rate: 0.48, spread: 0.03, speed: 840, mag: 20, reload: 1.8, range: 460, color: "#a371f7" },
     shotgun: { name: "Shotgun", dmg: 8,  rate: 0.72, spread: 0.26, speed: 560, mag: 6,  reload: 1.9, range: 170, pellets: 8, color: "#ff7b4a" },
+    sniper:  { name: "Sniper",  dmg: 80, rate: 1.25, spread: 0.005, speed: 1100, mag: 5, reload: 2.4, range: 700, color: "#ffd166" },
   };
-  const GK = Object.keys(GUNS);
+  const GK = Object.keys(GUNS).filter((k) => k !== "pickaxe"); // lootable guns (no pickaxe drops)
 
   let ctx, env, keys, pressed, mouse;
   let player, cam, bots, bullets, loot, walls, particles, storm, over, kills, alive;
@@ -25,25 +27,26 @@
   function mkGun(key) { return { key, ...GUNS[key], ammo: GUNS[key].mag, reloading: 0 }; }
 
   function reset() {
+    // you drop in with NOTHING but a pickaxe — you must loot guns off the ground / off kills
     player = { x: MAP_W / 2, y: MAP_H / 2, r: 13, spd: 235, hp: 100, shield: 0, aim: 0,
-      slots: [mkGun("pistol"), null, null], cur: 0, cd: 0 };
+      slots: [mkGun("pickaxe"), null, null], cur: 0, cd: 0, swing: 0 };
     cam = { x: 0, y: 0 }; bots = []; bullets = []; loot = []; particles = []; walls = [];
     over = null; kills = 0;
 
-    for (let i = 0; i < 30; i++) walls.push({ x: rand(80, MAP_W - 180), y: rand(80, MAP_H - 180), w: rand(50, 120), h: rand(50, 120) });
-    for (let i = 0; i < 22; i++) loot.push({ x: rand(60, MAP_W - 60), y: rand(60, MAP_H - 60), kind: "gun", gun: GK[(Math.random() * GK.length) | 0] });
-    for (let i = 0; i < 14; i++) loot.push({ x: rand(60, MAP_W - 60), y: rand(60, MAP_H - 60), kind: "shield" });
+    for (let i = 0; i < 60; i++) walls.push({ x: rand(80, MAP_W - 180), y: rand(80, MAP_H - 180), w: rand(50, 130), h: rand(50, 130) });
+    for (let i = 0; i < 44; i++) loot.push({ x: rand(60, MAP_W - 60), y: rand(60, MAP_H - 60), kind: "gun", gun: GK[(Math.random() * GK.length) | 0] });
+    for (let i = 0; i < 26; i++) loot.push({ x: rand(60, MAP_W - 60), y: rand(60, MAP_H - 60), kind: "shield" });
 
-    for (let i = 0; i < 14; i++) spawnBot();
+    for (let i = 0; i < 24; i++) spawnBot();
     alive = bots.length + 1;
-    storm = { cx: MAP_W / 2, cy: MAP_H / 2, r: Math.hypot(MAP_W, MAP_H) / 2, target: 240, shrink: 20 };
+    storm = { cx: MAP_W / 2, cy: MAP_H / 2, r: Math.hypot(MAP_W, MAP_H) / 2, target: 260, shrink: 24 };
   }
 
   function spawnBot() {
     let x, y, t = 0;
     do { x = rand(60, MAP_W - 60); y = rand(60, MAP_H - 60); t++; } while (dist(x, y, MAP_W / 2, MAP_H / 2) < 300 && t < 20);
     bots.push({
-      x, y, r: 13, hp: 100, spd: rand(150, 200), gun: mkGun(GK[(Math.random() * GK.length) | 0]),
+      x, y, r: 13, hp: 100, spd: rand(150, 200), gun: mkGun("pickaxe"), lootT: rand(3, 14),
       state: "roam", reactT: 0, fireCd: rand(0, 1), strafe: Math.random() < 0.5 ? 1 : -1, strafeT: rand(0.6, 1.6),
       skill: rand(0.35, 0.8), wanderA: rand(0, 6.28), wanderT: 0, lostT: 0, name: "Bot",
     });
@@ -51,7 +54,7 @@
 
   function start(c, e) {
     ctx = c; env = e; keys = e.keys; pressed = e.pressed; mouse = e.mouse; reset();
-    env.setControls("<b>WASD</b> move · <b>Mouse</b> aim · <b>Click/hold</b> fire · <b>1/2/3</b> or <b>Q</b> switch weapon · <b>R</b> reload · <b>ESC</b> menu");
+    env.setControls("You start with a <b>PICKAXE</b> — find guns! · <b>WASD</b> move · <b>Mouse</b> aim · <b>Click</b> fire/swing · <b>1/2/3</b>/<b>Q</b> switch · <b>R</b> reload · <b>ESC</b> menu");
     env.hideOverlay();
   }
 
@@ -107,12 +110,14 @@
     if (!wallAt(nx, player.y)) player.x = nx;
     if (!wallAt(player.x, ny)) player.y = ny;
 
-    // fire
+    // fire / swing
     const g = curGun();
     player.cd = Math.max(0, player.cd - dt);
-    if (g.reloading > 0) { g.reloading -= dt; if (g.reloading <= 0) g.ammo = g.mag; }
-    if ((mouse.down || keys.Space) && player.cd <= 0 && g.reloading <= 0) {
-      if (g.ammo > 0) { fire(player, player.aim, g, true); g.ammo--; player.cd = g.rate; if (g.ammo === 0) reloadGun(g); }
+    player.swing = Math.max(0, player.swing - dt);
+    if (!g.melee && g.reloading > 0) { g.reloading -= dt; if (g.reloading <= 0) g.ammo = g.mag; }
+    if ((mouse.down || keys.Space) && player.cd <= 0) {
+      if (g.melee) { meleeSwing(g); player.cd = g.rate; player.swing = 0.14; }
+      else if (g.reloading <= 0 && g.ammo > 0) { fire(player, player.aim, g, true); g.ammo--; player.cd = g.rate; if (g.ammo === 0) reloadGun(g); }
     }
 
     // loot
@@ -139,12 +144,10 @@
         bots.forEach((b) => { if (b.hp > 0 && dist(bu.x, bu.y, b.x, b.y) < b.r + 3) {
           b.hp -= bu.dmg; bu.life = 0; blood(b.x, b.y, "#ff6b6b");
           if (b.state === "roam") { b.state = "engage"; b.reactT = rand(0.2, 0.5); } // getting shot alerts them
-          if (b.hp <= 0) { b.dead = true; kills++; pop("Eliminated!", "#7ee787"); if (Math.random() < 0.7) loot.push({ x: b.x, y: b.y, kind: Math.random() < 0.5 ? "shield" : "gun", gun: b.gun.key }); }
+          if (b.hp <= 0) killBot(b);
         }});
       } else if (dist(bu.x, bu.y, player.x, player.y) < player.r + 3) {
-        bu.life = 0; let dmg = bu.dmg;
-        if (player.shield > 0) { const s = Math.min(player.shield, dmg); player.shield -= s; dmg -= s; }
-        player.hp -= dmg; blood(player.x, player.y, "#ffd166");
+        bu.life = 0; hurtPlayer(bu.dmg);
       }
     });
     bullets = bullets.filter((b) => b.life > 0);
@@ -161,15 +164,17 @@
     cam.y = clamp(player.y - H / 2, 0, MAP_H - H);
 
     const slots = player.slots.map((s, i) => s ? `${i + 1}:${s.name}${i === player.cur ? "*" : ""}` : `${i + 1}:—`).join("  ");
-    const ammo = g.reloading > 0 ? "RELOADING" : `${g.ammo}/${g.mag}`;
+    const ammo = g.melee ? "melee" : g.reloading > 0 ? "RELOADING" : `${g.ammo}/${g.mag}`;
     env.setHud(`HP ${Math.max(0, player.hp | 0)}  🛡${player.shield | 0}  [${ammo}]  ${slots}  Kills ${kills}  Alive ${alive}`);
   }
 
   function updateBots(dt) {
     bots.forEach((b) => {
       const d = dist(b.x, b.y, player.x, player.y);
+      // bots "loot" a real gun a little while after dropping in (like the player finding one)
+      if (b.lootT != null) { b.lootT -= dt; if (b.lootT <= 0) { b.gun = mkGun(GK[(Math.random() * GK.length) | 0]); b.lootT = null; } }
       const g = b.gun;
-      if (g.reloading > 0) { g.reloading -= dt; if (g.reloading <= 0) g.ammo = g.mag; }
+      if (!g.melee && g.reloading > 0) { g.reloading -= dt; if (g.reloading <= 0) g.ammo = g.mag; }
       b.fireCd = Math.max(0, b.fireCd - dt);
       const inStorm = dist(b.x, b.y, storm.cx, storm.cy) < storm.r - 30;
       const sight = 340 + b.skill * 120;
@@ -189,8 +194,8 @@
         tx = b.x + Math.cos(b.wanderA) * 120; ty = b.y + Math.sin(b.wanderA) * 120; moveSpd = b.spd * 0.6;
       } else if (b.state === "flee") {
         const a = Math.atan2(b.y - player.y, b.x - player.x); tx = b.x + Math.cos(a) * 120; ty = b.y + Math.sin(a) * 120;
-      } else { // engage — keep preferred range, strafe
-        const pref = clamp(g.range * 0.7, 120, 320);
+      } else { // engage — keep preferred range, strafe (melee rushes in)
+        const pref = g.melee ? 18 : clamp(g.range * 0.7, 120, 320);
         const a = Math.atan2(player.y - b.y, player.x - b.x);
         b.strafeT -= dt; if (b.strafeT <= 0) { b.strafe *= -1; b.strafeT = rand(0.7, 1.8); }
         let radial = 0;
@@ -204,10 +209,12 @@
       if (!wallAt(bnx, b.y)) b.x = bnx; if (!wallAt(b.x, bny)) b.y = bny;
       if (!inStorm) b.hp -= 11 * dt;
 
-      // ---- shooting (with reaction + inaccuracy) ----
+      // ---- attacking ----
       if (b.state === "engage" || (b.state === "flee" && Math.random() < 0.4)) {
         if (b.reactT > 0) b.reactT -= dt;
-        else if (sees && d < g.range * 1.1 && g.reloading <= 0 && b.fireCd <= 0) {
+        else if (g.melee) {
+          if (d < b.r + player.r + 6 && b.fireCd <= 0) { hurtPlayer(g.dmg * 0.6); b.fireCd = 0.8; }
+        } else if (sees && d < g.range * 1.1 && g.reloading <= 0 && b.fireCd <= 0) {
           if (g.ammo > 0) {
             // aim error: worse at range and for low-skill bots; small lead
             const err = (1 - b.skill) * 0.22 + (d / 1600);
@@ -223,6 +230,29 @@
 
   function pop(str, color) { particles.push({ x: player.x, y: player.y - 26, str, color, t: 1.1, vy: -24, vx: 0, kind: "txt" }); }
   function blood(x, y, c) { for (let i = 0; i < 6; i++) particles.push({ x, y, vx: rand(-70, 70), vy: rand(-70, 70), t: .3, color: c }); }
+
+  function hurtPlayer(dmg) {
+    if (player.shield > 0) { const s = Math.min(player.shield, dmg); player.shield -= s; dmg -= s; }
+    player.hp -= dmg; blood(player.x, player.y, "#ffd166");
+  }
+
+  function killBot(b) { b.dead = true; kills++; pop("Eliminated!", "#7ee787"); if (Math.random() < 0.7) loot.push({ x: b.x, y: b.y, kind: Math.random() < 0.5 ? "shield" : "gun", gun: GK[(Math.random() * GK.length) | 0] }); }
+
+  function meleeSwing(g) {
+    const ca = Math.cos(player.aim), sa = Math.sin(player.aim);
+    bots.forEach((b) => {
+      if (b.hp <= 0) return;
+      const dx = b.x - player.x, dy = b.y - player.y, d = Math.hypot(dx, dy);
+      if (d < g.range + b.r) {
+        const dot = (dx / (d || 1)) * ca + (dy / (d || 1)) * sa;
+        if (dot > 0.1 || d < b.r + 16) {
+          b.hp -= g.dmg; blood(b.x, b.y, "#ff6b6b");
+          if (b.state === "roam") { b.state = "engage"; b.reactT = rand(0.2, 0.5); }
+          if (b.hp <= 0) killBot(b);
+        }
+      }
+    });
+  }
 
   function drawPerson(x, y, aim, body) {
     rectFill(ctx, x - 6, y + 4, 4, 8, "#222"); rectFill(ctx, x + 2, y + 4, 4, 8, "#222"); // legs
@@ -253,7 +283,9 @@
 
     bullets.forEach((bu) => rectFill(ctx, bu.x - cam.x - 2, bu.y - cam.y - 2, 4, 4, bu.color || "#fff"));
 
-    drawPerson(player.x - cam.x, player.y - cam.y, player.aim, "#79c0ff");
+    const ppx = player.x - cam.x, ppy = player.y - cam.y;
+    if (player.swing > 0) { ctx.fillStyle = "rgba(255,240,150,.5)"; ctx.beginPath(); ctx.moveTo(ppx, ppy); ctx.arc(ppx, ppy, curGun().range + 6, player.aim - 0.9, player.aim + 0.9); ctx.closePath(); ctx.fill(); }
+    drawPerson(ppx, ppy, player.aim, "#79c0ff");
 
     particles.forEach((p) => { const x = p.x - cam.x, y = p.y - cam.y; if (p.kind === "txt") text(ctx, p.str, x, y, 14, p.color, "center"); else if (p.flash) rectFill(ctx, x - 3, y - 3, 6, 6, "#fff7c0"); else rectFill(ctx, x - 2, y - 2, 4, 4, p.color); });
 
