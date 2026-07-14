@@ -8,7 +8,7 @@
 (function () {
   const { rand, clamp, dist, rectFill, text, hash, island, biomeColor, drawHumanoid } = Arcade;
   const W = 960, H = 600;
-  const MAP_W = 3600, MAP_H = 3200;
+  const MAP_W = 6600, MAP_H = 5800;   // much bigger island
 
   const FIST = { name: "Fists", melee: true, dmg: 11, rate: 0.34, range: 26, color: "#e0a878" };
   const GUNS = {
@@ -20,10 +20,16 @@
     sniper:  { name: "Sniper",  dmg: 80, rate: 1.25, spread: 0.005, speed: 1100, mag: 5, reload: 2.4, range: 700, color: "#ffd166" },
   };
   const GK = ["pickaxe", "pistol", "smg", "rifle", "shotgun", "sniper"];
-  const POI_NAMES = ["Lighthouse", "Fishing Village", "Old Ruins", "Hilltop Fort", "Beach Camp", "Cave Mouth", "Watchtower", "Shipwreck"];
+  const POI_DEFS = [
+    ["Lighthouse", "light"], ["Fishing Village", "village"], ["Old Ruins", "ruins"], ["Hilltop Fort", "fort"],
+    ["Beach Camp", "camp"], ["Cave Mouth", "cave"], ["Watchtower", "tower"], ["Shipwreck", "wreck"],
+    ["Radio Mast", "tower"], ["Stone Quarry", "ruins"], ["Farmstead", "village"], ["The Docks", "wreck"],
+    ["Chapel", "fort"], ["Bunker", "cave"], ["Trading Post", "village"], ["Overlook", "light"],
+  ];
 
   let ctx, env, keys, pressed, mouse;
   let isl, player, cam, bots, bullets, loot, obst, pois, particles, storm, over, kills, alive, showMap;
+  let inside, owStash, room, iLoot;
 
   function mkGun(key) { const g = GUNS[key]; return { key, ...g, ammo: g.mag, reloading: 0 }; }
   function curGun() { return player.slots[player.cur] || FIST; }
@@ -32,25 +38,25 @@
     isl = island(MAP_W, MAP_H, 21);
     const sp = isl.findLand((x, y, b) => b === "sand" || b === "grass");
     player = { x: sp.x, y: sp.y, r: 13, spd: 235, hp: 100, shield: 0, aim: 0, slots: [null, null, null], cur: 0, cd: 0, swing: 0 };
-    cam = { x: 0, y: 0 }; bots = []; bullets = []; loot = []; particles = []; obst = []; over = null; kills = 0; showMap = false;
+    cam = { x: 0, y: 0 }; bots = []; bullets = []; loot = []; particles = []; obst = []; over = null; kills = 0; showMap = false; inside = null;
 
     // obstacles (cover): trees in forest, rocks in rock biome
-    for (let i = 0; i < 600; i++) { const x = rand(80, MAP_W - 80), y = rand(80, MAP_H - 80); const b = isl.biome(x, y); if (b === "forest" && hash(i, 1) < 0.5) obst.push({ x, y, r: 14, t: "tree" }); else if (b === "rock" && hash(i, 2) < 0.25) obst.push({ x, y, r: 16, t: "rock" }); }
+    for (let i = 0; i < 1600; i++) { const x = rand(80, MAP_W - 80), y = rand(80, MAP_H - 80); const b = isl.biome(x, y); if (b === "forest" && hash(i, 1) < 0.5) obst.push({ x, y, r: 14, t: "tree" }); else if (b === "rock" && hash(i, 2) < 0.25) obst.push({ x, y, r: 16, t: "rock" }); }
 
-    // POIs with loot clusters
+    // POIs (16) with loot clusters — each is an enterable building
     pois = []; let salt = 200;
-    POI_NAMES.forEach((nm, i) => {
-      let s; for (let t = 0; t < 30; t++) { s = isl.findLand(null, 600, salt++); if (!pois.some((p) => dist(p.x, p.y, s.x, s.y) < 500)) break; }
-      pois.push({ name: nm, x: s.x, y: s.y, kind: ["light", "village", "ruins", "fort", "camp", "cave", "tower", "wreck"][i] });
-      for (let k = 0; k < 5; k++) { const a = rand(0, 6.28), d = rand(20, 90); const lx = s.x + Math.cos(a) * d, ly = s.y + Math.sin(a) * d; if (!isl.passable(lx, ly)) continue; if (Math.random() < 0.6) loot.push({ x: lx, y: ly, kind: "gun", gun: GK[1 + ((Math.random() * (GK.length - 1)) | 0)] }); else loot.push({ x: lx, y: ly, kind: "shield" }); }
+    POI_DEFS.forEach(([nm, kind]) => {
+      let s; for (let t = 0; t < 40; t++) { s = isl.findLand(null, 900, salt++); if (!pois.some((p) => dist(p.x, p.y, s.x, s.y) < 620)) break; }
+      pois.push({ name: nm, x: s.x, y: s.y, kind, enter: true });
+      for (let k = 0; k < 4; k++) { const a = rand(0, 6.28), d = rand(28, 100); const lx = s.x + Math.cos(a) * d, ly = s.y + Math.sin(a) * d; if (!isl.passable(lx, ly)) continue; if (Math.random() < 0.6) loot.push({ x: lx, y: ly, kind: "gun", gun: GK[1 + ((Math.random() * (GK.length - 1)) | 0)] }); else loot.push({ x: lx, y: ly, kind: "shield" }); }
     });
     // sparse open-world loot
-    for (let i = 0; i < 26; i++) { const s = isl.findLand(null, 600, 900 + i); loot.push({ x: s.x, y: s.y, kind: Math.random() < 0.6 ? "gun" : "shield", gun: GK[(Math.random() * GK.length) | 0] }); }
+    for (let i = 0; i < 40; i++) { const s = isl.findLand(null, 900, 3000 + i); loot.push({ x: s.x, y: s.y, kind: Math.random() < 0.6 ? "gun" : "shield", gun: GK[(Math.random() * GK.length) | 0] }); }
 
-    for (let i = 0; i < 24; i++) spawnBot();
+    for (let i = 0; i < 34; i++) spawnBot();
     alive = bots.length + 1;
-    storm = { cx: isl.cx, cy: isl.cy, r: Math.hypot(MAP_W, MAP_H) / 2, target: 240, shrink: 22 };
-    env.setControls("Drop in with <b>FISTS</b> — loot guns at POIs! · <b>WASD</b> move · <b>Mouse</b> aim · <b>Click</b> fire · <b>1/2/3</b>/<b>Q</b> weapon · <b>R</b> reload · <b>M</b> map");
+    storm = { cx: isl.cx, cy: isl.cy, r: Math.hypot(MAP_W, MAP_H) / 2, target: 280, shrink: 20 };
+    env.setControls("Drop in with <b>FISTS</b> — loot guns! · <b>WASD</b> move · <b>Mouse</b> aim · <b>Click</b> fire · <b>1/2/3</b>/<b>Q</b> weapon · <b>R</b> reload · <b>E</b> enter buildings · <b>M</b> map");
   }
 
   function spawnBot() {
@@ -83,13 +89,45 @@
   function killBot(b) { b.dead = true; kills++; pop("Eliminated!", "#7ee787"); if (Math.random() < 0.7) loot.push({ x: b.x, y: b.y, kind: Math.random() < 0.5 ? "shield" : "gun", gun: GK[1 + ((Math.random() * (GK.length - 1)) | 0)] }); }
   function meleeSwing(g) { const ca = Math.cos(player.aim), sa = Math.sin(player.aim); bots.forEach((b) => { if (b.hp <= 0) return; const dx = b.x - player.x, dy = b.y - player.y, d = Math.hypot(dx, dy); if (d < g.range + b.r) { const dot = (dx / (d || 1)) * ca + (dy / (d || 1)) * sa; if (dot > 0.1 || d < b.r + 16) { b.hp -= g.dmg; blood(b.x, b.y, "#ff6b6b"); if (b.state === "roam") { b.state = "engage"; b.reactT = rand(0.2, 0.5); } if (b.hp <= 0) killBot(b); } } }); }
 
+  function nearestPoi() { let best = null, bd = 60; for (const p of pois) { const d = dist(p.x, p.y, player.x, player.y); if (d < bd) { bd = d; best = p; } } return best; }
+  function enterBuilding(p) {
+    owStash = { x: player.x, y: player.y };
+    inside = p; room = { x: 150, y: 100, w: 660, h: 360, doorX: 480, doorY: 450 };
+    player.x = room.doorX; player.y = room.doorY - 8;
+    iLoot = [];
+    const n = 5 + ((Math.random() * 3) | 0);
+    for (let i = 0; i < n; i++) { const lx = room.x + 60 + rand(0, room.w - 120), ly = room.y + 50 + rand(0, room.h - 120); iLoot.push({ x: lx, y: ly, kind: Math.random() < 0.62 ? "gun" : "shield", gun: GK[1 + ((Math.random() * (GK.length - 1)) | 0)] }); }
+  }
+  function exitBuilding() { player.x = owStash.x; player.y = owStash.y + 26; inside = null; owStash = null; }
+
+  function updateInterior(dt) {
+    let mx = 0, my = 0;
+    if (keys.KeyW || keys.ArrowUp) my -= 1;
+    if (keys.KeyS || keys.ArrowDown) my += 1;
+    if (keys.KeyA || keys.ArrowLeft) mx -= 1;
+    if (keys.KeyD || keys.ArrowRight) mx += 1;
+    const l = Math.hypot(mx, my) || 1;
+    player.x = clamp(player.x + (mx / l) * player.spd * dt, room.x + 14, room.x + room.w - 14);
+    player.y = clamp(player.y + (my / l) * player.spd * dt, room.y + 14, room.y + room.h - 14);
+    if (mx || my) player.walk = (player.walk || 0) + dt; else player.walk = 0;
+    player.aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+    iLoot = iLoot.filter((it) => { if (dist(it.x, it.y, player.x, player.y) < 26) { if (it.kind === "shield") { player.shield = Math.min(100, player.shield + 50); pop("+50 shield", "#79c0ff"); } else pickup(it.gun); return false; } return true; });
+    if (pressed.KeyE && dist(room.doorX, room.doorY, player.x, player.y) < 46) exitBuilding();
+    particles.forEach((p) => { p.t -= dt; if (p.vx != null) { p.x += p.vx * dt; p.y += p.vy * dt; } });
+    particles = particles.filter((p) => p.t > 0);
+    const g = curGun();
+    env.setHud(`${inside.name} (inside)  HP ${player.hp | 0} 🛡${player.shield | 0}  loot: ${iLoot.length} left  ·  [E] at door to leave`);
+  }
+
   function update(dt) {
     if (over) { if (pressed.Space || mouse.clicked) reset(); return; }
+    if (inside) return updateInterior(dt);
     if (pressed.KeyM || pressed.Tab) showMap = !showMap;
     if (showMap) { if (mouse.clicked || pressed.Escape) showMap = false; env.setHud("MAP — press M to close"); return; }
 
     const wx = mouse.x + cam.x, wy = mouse.y + cam.y;
     player.aim = Math.atan2(wy - player.y, wx - player.x);
+    if (pressed.KeyE) { const p = nearestPoi(); if (p) return enterBuilding(p); }
     if (pressed.Digit1) switchTo(0);
     if (pressed.Digit2) switchTo(1);
     if (pressed.Digit3) switchTo(2);
@@ -188,12 +226,26 @@
     text(ctx, p.name, x, y - 52, 12, "#ffe0a0", "center");
   }
 
+  function renderInterior() {
+    rectFill(ctx, 0, 0, W, H, "#0c0a10");
+    for (let y = room.y; y < room.y + room.h; y += 32) for (let x = room.x; x < room.x + room.w; x += 32) { const v = hash((x / 32) | 0, (y / 32) | 0); rectFill(ctx, x, y, 32, 32, v > 0.5 ? "#3a3038" : "#312a30"); }
+    rectFill(ctx, room.x - 10, room.y - 10, room.w + 20, 10, "#15121c"); rectFill(ctx, room.x - 10, room.y + room.h, room.w + 20, 10, "#15121c");
+    rectFill(ctx, room.x - 10, room.y - 10, 10, room.h + 20, "#15121c"); rectFill(ctx, room.x + room.w, room.y - 10, 10, room.h + 20, "#15121c");
+    rectFill(ctx, room.doorX - 22, room.doorY - 6, 44, 12, "#3a2a1a"); text(ctx, "EXIT [E]", room.doorX, room.doorY + 8, 11, "#ffd166", "center");
+    iLoot.forEach((it) => { if (it.kind === "shield") rectFill(ctx, it.x - 7, it.y - 7, 14, 14, "#79c0ff"); else { rectFill(ctx, it.x - 9, it.y - 4, 18, 8, GUNS[it.gun].color); rectFill(ctx, it.x - 9, it.y - 4, 4, 8, "#333"); } });
+    drawFighter(player.x, player.y, player.aim, true, player.walk, false, !curGun().melee);
+    particles.forEach((p) => { if (p.kind === "txt") text(ctx, p.str, p.x, p.y, 14, p.color, "center"); });
+    text(ctx, inside.name, W / 2, 30, 22, "#ffe0a0", "center");
+    text(ctx, "Grab the loot — then [E] at the door. (Safe from the storm & bots in here.)", W / 2, 62, 12, "#8b949e", "center");
+    drawHotbar();
+  }
   function render() {
+    if (inside) return renderInterior();
     if (showMap) return renderMap();
     const TS = 32, ox = Math.floor(cam.x / TS) * TS, oy = Math.floor(cam.y / TS) * TS;
     for (let wy = oy; wy < cam.y + H + TS; wy += TS) for (let wx = ox; wx < cam.x + W + TS; wx += TS) { const b = isl.biome(wx + 16, wy + 16); ctx.fillStyle = biomeColor(b, hash((wx / TS) | 0, (wy / TS) | 0)); ctx.fillRect(wx - cam.x, wy - cam.y, TS + 1, TS + 1); }
     // POIs
-    pois.forEach((p) => { const x = p.x - cam.x, y = p.y - cam.y; if (x < -60 || x > W + 60 || y < -60 || y > H + 60) return; drawStructure(p, x, y); });
+    pois.forEach((p) => { const x = p.x - cam.x, y = p.y - cam.y; if (x < -60 || x > W + 60 || y < -60 || y > H + 60) return; drawStructure(p, x, y); if (dist(p.x, p.y, player.x, player.y) < 60) text(ctx, "[E] enter", x, y + 16, 12, "#ffd166", "center"); });
     // loot
     loot.forEach((it) => { const x = it.x - cam.x, y = it.y - cam.y; if (x < -20 || x > W + 20 || y < -20 || y > H + 20) return; if (it.kind === "shield") rectFill(ctx, x - 7, y - 7, 14, 14, "#79c0ff"); else { rectFill(ctx, x - 9, y - 4, 18, 8, GUNS[it.gun].color); rectFill(ctx, x - 9, y - 4, 4, 8, "#333"); } });
     // obstacles
